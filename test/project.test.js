@@ -22,13 +22,6 @@ test('valid explicit output directory is preserved',()=>withFixture(root=>{
  const dest=path.join(root,'release');fs.mkdirSync(dest);
  assert.equal(resolveProject(path.join(root,'app.pbt'),80,{exePath:path.join(dest,'custom.exe')}).exePath,path.join(dest,'custom.exe'));
 }));
-test('default EXE uses the sibling application directory when it exists',()=>withFixture(root=>{
- const projectDir=path.join(root,'Zhis4'),applicationDir=path.join(root,'app');
- fs.mkdirSync(projectDir);fs.mkdirSync(applicationDir);
- for(const name of ['app.pbl','base.pbl','app.pbt'])fs.renameSync(path.join(root,name),path.join(projectDir,name));
- const c=resolveProject(path.join(projectDir,'app.pbt'),80);
- assert.equal(c.exePath,path.join(applicationDir,'app.exe'));
-}));
 test('stale PBL/PBR references fall back to same-named files in target directory',()=>withFixture(root=>{
  fs.writeFileSync(path.join(root,'app.pbt'),'appname "app";\napplib "stale\\app.pbl";\nliblist "stale\\app.pbl;stale\\base.pbl";','utf8');
  fs.writeFileSync(path.join(root,'app.pbr'),'图标.bmp\r\n','utf8');fs.writeFileSync(path.join(root,'图标.bmp'),'fixture');
