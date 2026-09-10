@@ -2,7 +2,7 @@
 
 基于 npm pb-ai-mcp 1.0.21 的独立维护版本，目标项目：[FLORYHOBBIT/pb-ai-mcp](https://github.com/FLORYHOBBIT/pb-ai-mcp)。上游引用、二进制来源和 SHA-256 见 [UPSTREAM.md](UPSTREAM.md)。
 
-修复单 PBL 编译未加载依赖库的问题，支持按 PBT 完整库列表重编译和生成 PBD、EXE。PBR、EXE 使用默认配置，异常目录回落到当前 PBT/PBL 目录。详细行为、参数和恢复方法见 [FIX-README.md](FIX-README.md)。
+修复单 PBL 编译未加载依赖库的问题，支持按 PBT 完整库列表重编译和生成 PBD、EXE。默认优先保持上一级同名应用目录作为 EXE/PBD 输出目录，目录不存在或显式目录异常时回落到当前 PBT/PBL 目录。详细行为、参数和恢复方法见 [FIX-README.md](FIX-README.md)。
 
 ## 安装和运行
 
