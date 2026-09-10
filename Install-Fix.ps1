@@ -1,5 +1,5 @@
 param(
- [string]$Target=(Join-Path $env:USERPROFILE 'node_modules\pb-ai-mcp'),
+ [string]$Target=(Join-Path $env:USERPROFILE 'node_modules\pb-ai'),
  [switch]$Restore,
  [string]$BackupDirectory
 )

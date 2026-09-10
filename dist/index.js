@@ -27,8 +27,8 @@ const workflow_js_1 = require("./tools/workflow.js");
 const pbtoweb_js_1 = require("./tools/pbtoweb.js");
 async function main() {
     const server = new mcp_js_1.McpServer({
-        name: 'pb-mcp',
-        version: '1.0.0',
+        name: 'pb-ai',
+        version: require('../package.json').version,
     });
     // 注册所有工具
     (0, library_js_1.registerLibraryTools)(server);

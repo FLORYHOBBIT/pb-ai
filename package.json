@@ -1,6 +1,8 @@
 {
   "bin": {
-    "pb-ai-mcp": "dist/index.js"
+    "pb-ai": "dist/index.js",
+    "pb-ai-mcp": "dist/index.js",
+    "pb-build": "dist/cli.js"
   },
   "bundleDependencies": false,
   "dependencies": {
@@ -8,13 +10,13 @@
     "zod": "^3.24.4"
   },
   "deprecated": false,
-  "description": "MCP Server for PowerBuilder PBL operations - list, export, import, compile, sync source code",
+  "description": "PowerBuilder MCP service and pb-build command-line compiler",
   "devDependencies": {
     "@types/node": "^22.15.3",
     "typescript": "^5.8.3"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18"
   },
   "files": [
     "dist/",
@@ -26,7 +28,9 @@
     "pb-project-build.exe",
     "build-native.ps1",
     "Install-Fix.ps1",
-    "FIX-README.md"
+    "FIX-README.md",
+    "UPSTREAM.md",
+    "docs/"
   ],
   "keywords": [
     "mcp",
@@ -39,24 +43,24 @@
   ],
   "license": "MIT",
   "main": "dist/index.js",
-  "name": "pb-ai-mcp",
+  "name": "pb-ai",
   "scripts": {
     "build": "npm run build:native",
     "start": "node dist/index.js",
-    "test": "node --test test/project.test.js",
+    "cli": "node dist/cli.js",
+    "test": "node --test test/project.test.js test/cli.test.js",
     "build:native": "powershell -NoProfile -ExecutionPolicy Bypass -File build-native.ps1",
     "test:native": "node --test test/native-smoke.test.js"
   },
   "type": "commonjs",
-  "version": "1.0.21-local-projectfix.1",
+  "version": "1.0.22",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/FLORYHOBBIT/pb-ai-mcp.git"
+    "url": "https://github.com/FLORYHOBBIT/pb-ai.git"
   },
-  "homepage": "https://github.com/FLORYHOBBIT/pb-ai-mcp",
+  "homepage": "https://github.com/FLORYHOBBIT/pb-ai",
   "bugs": {
-    "url": "https://github.com/FLORYHOBBIT/pb-ai-mcp/issues"
+    "url": "https://github.com/FLORYHOBBIT/pb-ai/issues"
   }
 }
-

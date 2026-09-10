@@ -1,6 +1,6 @@
-# pb-ai-mcp：PowerBuilder 多库编译修复
+# pb-ai：PowerBuilder 多库编译修复
 
-基于 npm pb-ai-mcp 1.0.21 的独立维护版本，目标项目：[FLORYHOBBIT/pb-ai-mcp](https://github.com/FLORYHOBBIT/pb-ai-mcp)。上游引用、二进制来源和 SHA-256 见 [UPSTREAM.md](UPSTREAM.md)。
+基于 npm pb-ai-mcp 1.0.21 的独立维护版本，目标项目：[FLORYHOBBIT/pb-ai](https://github.com/FLORYHOBBIT/pb-ai)。上游引用、二进制来源和 SHA-256 见 [UPSTREAM.md](UPSTREAM.md)。
 
 修复单 PBL 编译未加载依赖库的问题，支持按 PBT 完整库列表重编译和生成 PBD、EXE。PBR、EXE 使用默认配置，异常目录回落到当前 PBT/PBL 目录。详细行为、参数和恢复方法见 [FIX-README.md](FIX-README.md)。
 
@@ -21,7 +21,7 @@ MCP 启动命令为 node，参数为本仓库 dist/index.js 的绝对路径。�
 
 package.json 设置 private=true，避免误发布到原 npm 包名；GitHub 仓库公开可见性由 GitHub 设置决定。
 
-# pb-ai-mcp
+# pb-ai
 
 PowerBuilder PBL 操作的 MCP 服务器，让 AI 能够直接读取、编辑、编译 PowerBuilder 工程。
 
@@ -44,7 +44,7 @@ PowerBuilder PBL 操作的 MCP 服务器，让 AI 能够直接读取、编辑、
 ## 安装
 
 ```bash
-npm install -g pb-ai-mcp
+npm install -g github:FLORYHOBBIT/pb-ai#main
 ```
 
 ## 配置 AI 编辑器
@@ -59,7 +59,7 @@ npm install -g pb-ai-mcp
   "mcpServers": {
     "pb-ai-mcp": {
       "command": "npx",
-      "args": ["pb-ai-mcp"]
+      "args": ["pb-ai"]
     }
   }
 }
@@ -74,7 +74,7 @@ npm install -g pb-ai-mcp
   "chat.mcp.servers": {
     "pb-ai-mcp": {
       "command": "npx",
-      "args": ["pb-ai-mcp"]
+      "args": ["pb-ai"]
     }
   }
 }
@@ -156,3 +156,16 @@ MIT
 </tr>
 </table>
 
+
+## 独立命令行编译
+
+MCP 服务和命令行入口相互独立，共用同一套工程编译服务。安装后可以直接运行：
+
+```powershell
+pb-build compile "C:\PBProjects\Demo\demo.pbt" --pb-version 80
+pb-build build "C:\PBProjects\Demo\demo.pbt" --pb-version 80
+```
+
+`compile` 只执行 Full Rebuild；`build` 同时生成 PBD 和 EXE。编译期间会持续显示当前阶段及 PB 编译消息，结束时显示产物和日志目录。可用 `--exe`、`--pbr`、`--icon` 覆盖相应路径，或用 `--quiet` 隐藏逐条普通编译消息。
+
+全局安装后可直接使用 pb-build；本地安装可用 node_modules\.bin\pb-build.cmd，或执行 node dist/cli.js。MCP 新入口为 pb-ai，pb-ai-mcp 作为兼容别名保留。
