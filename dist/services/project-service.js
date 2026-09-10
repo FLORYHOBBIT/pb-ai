@@ -18,10 +18,6 @@ function outputPath(raw,base,defaultName,warnings){
  const requested=path.resolve(base,clean(raw||defaultName));if(directory(path.dirname(requested)))return requested;
  const fallback=path.join(base,path.basename(requested));warnings.push(`EXE目录无效，回落：${requested} -> ${fallback}`);return fallback;
 }
-function defaultExePath(base,appName){
- const applicationDir=path.join(path.dirname(base),appName);
- return path.join(directory(applicationDir)?applicationDir:base,appName+'.exe');
-}
 function pbtFields(file){
  const text=fs.readFileSync(file,'utf8').replace(/^\uFEFF/,'');
  const get=key=>{const m=text.match(new RegExp('(?:^|\\n)\\s*'+key+'\\s+"([^"]*)"','i'));return m&&m[1];};
@@ -71,7 +67,7 @@ function resolveProject(input,version,options={}){
  }
  if(!libraries.some(x=>x.toLowerCase()===appLibrary.toLowerCase()))throw new Error('应用库不在PBT库列表中');
  if(options.appName&&options.appName.toLowerCase()!==appName.toLowerCase())throw new Error('appName与PBT应用对象不一致');
- const exePath=options.exePath?outputPath(options.exePath,baseDir,appName+'.exe',warnings):defaultExePath(baseDir,appName),defaultPbr=path.join(baseDir,appName+'.pbr');
+ const exePath=outputPath(options.exePath,baseDir,appName+'.exe',warnings),defaultPbr=path.join(baseDir,appName+'.pbr');
  const pbrPath=options.pbrPath?inputPath(options.pbrPath,baseDir,'PBR',warnings):exists(defaultPbr)?defaultPbr:null;
  const iconPath=options.iconPath?inputPath(options.iconPath,baseDir,'图标',warnings):[path.join(baseDir,'res',appName+'.ico'),path.join(baseDir,appName+'.ico')].find(exists)||null;
  const pbdFlags=options.pbdFlags||libraries.map(()=>1);
