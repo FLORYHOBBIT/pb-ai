@@ -6,7 +6,7 @@
 
 - `pbl_compile` 接受 PBT/PBL，自动发现同名 PBT，按原顺序加载完整库列表，设置应用对象，执行 Full Rebuild。
 - `pbl_create_exe` 先完整重编译，再生成 PBD、EXE。默认为 Pcode，各库 PBD 标志全部为 1。
-- 默认 EXE 优先放在 PBT/PBL 目录上一级的同名应用目录中，例如 `Zhis4/doctor.pbt` 输出到 `doctor/doctor.exe`；同名目录不存在时才使用 PBT/PBL 目录。PBR 仍取工程目录中的 `应用名.pbr`（存在才使用）；图标优先 `res/应用名.ico`，其次 `应用名.ico`。
+- 默认 EXE 为 PBT/PBL 目录中的 `应用名.exe`；PBR 为同目录的 `应用名.pbr`（存在才使用）；图标优先 `res/应用名.ico`，其次 `应用名.ico`。
 - 默认不读取可能过期的外部 SRJ 文件。公司等版本描述沿用调用参数或默认值；可以显式设置。PBD 单库资源默认空，可用 `libraryPbrPaths` 按库顺序指定。
 - 有效绝对路径保留，相对路径相对于 PBT/PBL 目录。失效的输入路径尝试当前目录同名文件；失效的 EXE 目录回落到当前目录，不创建旧目录。
 - PBR 中的中文资源按 UTF-8 优先读取，已有 PB8 ANSI 文件明确按 GB18030 解码；只为编译器生成临时 ANSI 资源清单，不改写原 PBR。临时 PBR 放在当前工程目录，保证 PB8 按 PBR 目录解析相对资源路径；正常结束时清理。
