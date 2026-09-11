@@ -13,7 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * - pbl_export_all: 导出 PBL 中所有源码对象到文件夹
  * - pbl_import_source: 导入/更新对象源码
  * - pbl_delete_object: 删除对象
- * - pbl_compile: 编译 PBL (通过 PBSpy.dll)
+ * - pbl_compile: 编译 PBL (通过自有 pb-native.dll)
  * - pbl_create_exe: 编译 PBL 为 EXE 可执行文件
  * - pbl_workflow: 获取工作流指南和源码模板
  * - pbl_pbtoweb: 将 PB 应用转换为 Web 应用

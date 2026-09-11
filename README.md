@@ -1,171 +1,70 @@
-# pb-ai：PowerBuilder 多库编译修复
-
-基于 npm pb-ai-mcp 1.0.21 的独立维护版本，目标项目：[FLORYHOBBIT/pb-ai](https://github.com/FLORYHOBBIT/pb-ai)。上游引用、二进制来源和 SHA-256 见 [UPSTREAM.md](UPSTREAM.md)。
-
-修复单 PBL 编译未加载依赖库的问题，支持按 PBT 完整库列表重编译和生成 PBD、EXE。PBR、EXE 使用默认配置，异常目录回落到当前 PBT/PBL 目录。详细行为、参数和恢复方法见 [FIX-README.md](FIX-README.md)。
-
-## 安装和运行
-
-需要 Windows、Node.js 和与工程版本匹配的 PowerBuilder 运行环境；原生桥使用 x86 .NET Framework。
-
-```powershell
-npm install
-npm run build:native
-npm test
-npm start
-```
-
-MCP 启动命令为 node，参数为本仓库 dist/index.js 的绝对路径。原有 pb-cli.exe、PBSpy.dll 已从官方 npm 原包提取并放入仓库；新增 pb-project-build.exe 可由源码重新构建。原包未提供完整 TypeScript 工程，修改 JavaScript 后不需要 tsc。
-
-在具备 PB8 环境的 Windows 上运行 npm run test:native，验证真实 EXE/PBD 和中文 PBR 资源。交付修复已在 PB8 多库工程及中文资源样例验证；其他 PB 版本及应用业务运行未验收。
-
-package.json 设置 private=true，避免误发布到原 npm 包名；GitHub 仓库公开可见性由 GitHub 设置决定。
-
 # pb-ai
 
-PowerBuilder PBL 操作的 MCP 服务器，让 AI 能够直接读取、编辑、编译 PowerBuilder 工程。
+PowerBuilder 的 `pb-build` 命令行工具和 MCP 服务，维护项目为 [FLORYHOBBIT/pb-ai](https://github.com/FLORYHOBBIT/pb-ai)。本版本使用自有 C 原生组件，不再分发或调用原来的 PBSpy.dll、pb-cli.exe。上游来源说明见 [UPSTREAM.md](UPSTREAM.md)。
 
-## 功能特性
+## 安装与使用
 
-- **查看 PBL 信息** - 获取 PBL 版本、格式、对象列表
-- **导出源码** - 导出单个或所有对象的源码
-- **导入源码** - 将修改后的源码导入 PBL（自动编译）
-- **同步源码** - 智能同步到本地目录，时间戳保护避免覆盖
-- **删除对象** - 从 PBL 中删除指定对象
-- **编译 PBL** - 编译 PBL 中所有对象
-- **创建 EXE** - 编译 PBL 为可执行文件
+需要 Windows、Node.js 18+、.NET Framework 4.x，以及本机安装的对应版本 **Sybase ORCA 和 PowerBuilder 运行库**。当前适配版本号为 80、90、125；PB8 8.0.2.9506 支持真实对象进度。其他构建号会明确提示进度未适配，仍只执行一次完整重建。
 
-## 系统要求
+试验版本先安装本地压缩包；未提交的修改不会通过 GitHub 安装得到：
 
-- **Node.js** >= 16.0.0
-- **Windows** (pb-cli.exe 是 32 位 .NET 程序)
-- **PowerBuilder Runtime DLL** 
-
-## 安装
-
-```bash
-npm install -g github:FLORYHOBBIT/pb-ai#main
+```cmd
+cd /d D:\Environment\pb-mcp-test
+npm install "C:\Users\93199\Documents\Codex\2026-09-10\pb-ai-mcp\outputs\pb-ai-1.0.24-native.1.tgz"
+.\node_modules\.bin\pb-build.cmd build "E:\job\source_gzjszyy\Zhis4\doctor.pbt" --pb-version 80 --exe "E:\job\source_gzjszyy\doctor\doctor.exe"
 ```
 
-## 配置 AI 编辑器
+工具优先从对应版本的注册表安装目录、PATH 查找运行库。查找不到时，设置 `PB_RUNTIME_DIR`，或给编译命令增加 `--runtime-dir "D:\Environment\Sybase\Shared\PowerBuilder"`。该目录应包含真正的 `pborc80.dll` 等厂商文件，不能用重命名的 PBSpy 替代。
 
-
-### Qoder/ Cursor
-
-在 Settings > MCP 中添加：
-
-```json
-{
-  "mcpServers": {
-    "pb-ai-mcp": {
-      "command": "npx",
-      "args": ["pb-ai"]
-    }
-  }
-}
+```cmd
+set "PB_RUNTIME_DIR=D:\Environment\Sybase\Shared\PowerBuilder"
+set "PB_VERSION=80"
 ```
 
-### VS Code (Copilot)
+`PB_VERSION` 用于未显式指定版本的库查看/导出工具。ANSI PBL 文件头不能区分 PB8/PB9，默认使用 PB8；Unicode 默认 PB12.5。创建、导入、删除对象和编译应明确指定实际 PB 版本，不能把此默认值当作文件版本检测结论。
 
-在 `.vscode/settings.json` 中添加：
+常用编译参数：
 
-```json
-{
-  "chat.mcp.servers": {
-    "pb-ai-mcp": {
-      "command": "npx",
-      "args": ["pb-ai"]
-    }
-  }
-}
-```
+| 参数 | 行为 |
+| --- | --- |
+| `compile <PBT/PBL>` | 完整重建，不生成 EXE/PBD |
+| `build <PBT/PBL>` | 完整重建，再生成 EXE/PBD |
+| `--exe <文件>` | EXE 生成位置；目录无效时回落 PBT/PBL 目录 |
+| `--pbr <文件>` | 指定资源清单；默认应用同名 PBR |
+| `--icon <文件>` | 指定图标；未提供且无同名图标时使用内置小图标 |
+| `--output-dir <目录>` | 成功后额外复制 EXE 和 PBD；原产物保留 |
+| `--quiet` | 隐藏逐对象和普通诊断，保留阶段与错误 |
+| `--trace-objects` | 旧参数兼容；对象进度默认开启，不再预编译 |
 
-## MCP 工具列表
+PBD 默认生成在对应 PBL 旁，不再自动全部复制到 EXE 目录。CLI 显示对象的阶段编号、对象名和 PBL 路径；同一对象可能被 PB 在不同阶段处理，日志事件数量不是完成百分比。
 
-| 工具名               | 说明                                    |
-| -------------------- | --------------------------------------- |
-| `pbl_library_info`   | 获取 PBL 库信息（版本、格式、对象列表） |
-| `pbl_list_objects`   | 列出 PBL 中的源码对象，可按类型过滤     |
-| `pbl_export_source`  | 导出单个对象的源码                      |
-| `pbl_export_all`     | 导出所有源码对象到目录                  |
-| `pbl_sync_source`    | 同步源码到本地目录（时间戳感知）        |
-| `pbl_import_source`  | 导入源码文件到 PBL                      |
-| `pbl_delete_object`  | 删除 PBL 中的对象                       |
-| `pbl_compile`        | 编译 PBL 中所有对象                     |
-| `pbl_create_library` | 创建新的 PBL 库                         |
-| `pbl_delete_library` | 删除 PBL 库文件                         |
-| `pbl_create_exe`     | 编译 PBL 为 EXE 可执行文件              |
+## MCP
 
+启动命令为 `node`，参数为安装包 `dist/index.js` 的绝对路径；也可以运行本地 `node_modules\.bin\pb-ai.cmd`。升级后重启 MCP 进程。
 
-## 对象类型与扩展名
+查看、列举、导出、同步、导入、删除、创建库、编译与构建工具均使用新的后端。工作流文档和独立 pbtoweb 工具保留。同步会保护比 PBL 对象更新的本地源码。
 
-| 类型        | 扩展名 |
-| ----------- | ------ |
-| Application | .sra   |
-| Window      | .srw   |
-| Menu        | .srm   |
-| DataWindow  | .srd   |
-| Function    | .srf   |
-| Structure   | .srs   |
-| UserObject  | .sru   |
-| Query       | .srq   |
-| Pipeline    | .srp   |
-| Project     | .srj   |
+导入跨库对象时可传 `pbtPath`，以加载完整依赖列表；共享 PBL 被多个 PBT 引用时必须指定。导入错误会恢复目标 PBL，返回完整诊断，不把“对象已存在”误报成导入成功。
 
-## 支持的 PowerBuilder 版本
+## 源码和构建
 
-- PB 10+ (HDR/Unicode-ENT/DAT 格式)
-- PB 9 (HDR/ANSI-ENT/DAT 格式)
-- PB 6-9 Classic (Block-based 格式)
+| 文件 | 职责 |
+| --- | --- |
+| `src/native/pb_native.c` → `pb-native.dll` | 自有 x86 C DLL，调用厂商 ORCA，并接入 PB8 真实对象回调 |
+| `src/native/*.cs` → `pb-native-host.exe` | JSON/编码/进程隔离与 EXE 版本资源处理；源码全部在仓库 |
+| `dist/services`、`dist/cli.js` | 项目解析、备份恢复、复制产物、MCP 与 CMD 日志 |
 
-## 故障排除
-
-### pb-cli.exe not found
-
-确保 `pb-cli.exe` 和 `PBSpy.dll` 与 `pb-ai-mcp` 在同一目录。
-
-### 加载失败
-
-- 检查是否安装了 PowerBuilder Runtime
-- 确保系统是 Windows（不支持 Linux/Mac）
-
-### 导入源码失败
-
-- 检查源码语法是否正确
-- 查看编译错误信息定位问题
-- 确保对象类型匹配
-
-## 许可证
-
-MIT
-
-## 相关链接
-
-- [npm 包](https://www.npmjs.com/package/pb-ai-mcp)
-- [MCP 协议](https://modelcontextprotocol.io/)
-- [问题反馈](https://github.com/your-username/pb-ai-mcp/issues)
-
-## 捐赠支持
-
-如果你觉得这个项目帮助到了你，你可以请作者喝杯咖啡表示鼓励 ☕️
-
-<table>
-<tr>
-<td style="padding: 10px;"><img src="http://www.satrda.com:5555/pbai/image/weixin.jpg" height="520" alt="微信"></td>
-<td style="padding: 10px;"><img src="http://www.satrda.com:5555/pbai/image/zhifubao.jpg" height="520" alt="支付宝"></td>
-</tr>
-</table>
-
-
-## 独立命令行编译
-
-MCP 服务和命令行入口相互独立，共用同一套工程编译服务。安装后可以直接运行：
+本项目没有重新实现 PowerScript 编译器；实际编译由本机 Sybase 原生编译器执行。厂商 DLL 不包含在 npm 包中。
 
 ```powershell
-pb-build compile "C:\PBProjects\Demo\demo.pbt" --pb-version 80
-pb-build build "C:\PBProjects\Demo\demo.pbt" --pb-version 80
+# 只需开发者重建二进制时执行；普通安装直接使用预编译文件。
+.\build-native.ps1 -BootstrapCompiler
+# 或使用已经安装的 x86 TinyCC：
+.\build-native.ps1 -TccPath 'C:\tools\tcc\tcc.exe'
+npm test
+npm run test:native
 ```
 
-`compile` 只执行 Full Rebuild；`build` 同时生成 PBD 和 EXE。编译期间会持续显示当前阶段及 PB 编译消息，结束时显示产物和日志目录。可用 `--exe`、`--pbr`、`--icon` 覆盖相应路径，或用 `--quiet` 隐藏逐条普通编译消息。
+`-BootstrapCompiler` 从 TinyCC 官方发行地址下载固定版本，并检查固定 SHA256；不修改全局 PATH。工具链不进入发布包。
 
-全局安装后可直接使用 pb-build；本地安装可用 node_modules\.bin\pb-build.cmd，或执行 node dist/cli.js。MCP 新入口为 pb-ai，pb-ai-mcp 作为兼容别名保留。
+验证范围和试验安装说明见 [TRIAL.md](TRIAL.md)，实现边界见 [FIX-README.md](FIX-README.md)。当前版本保持 `private=true`，未向 npm 注册表发布。

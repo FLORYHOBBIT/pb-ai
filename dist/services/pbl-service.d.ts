@@ -39,7 +39,7 @@ export declare function exportSourceToFile(pblPath: string, objectName: string, 
 /**
  * 导入源码到 PBL
  */
-export declare function importSource(pblPath: string, objectName: string, source: string, srcFile?: string, pbVersion?: number): ImportResult;
+export declare function importSource(pblPath: string, objectName: string, source: string, srcFile?: string, pbVersion?: number, options?: {pbtPath?: string}): ImportResult;
 /**
  * 删除 PBL 中的对象
  */

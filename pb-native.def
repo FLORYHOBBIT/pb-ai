@@ -1,0 +1,23 @@
+LIBRARY pb-native.dll
+
+EXPORTS
+_pb_application@12
+_pb_close@4
+_pb_create_library@12
+_pb_delete_entry@16
+_pb_delete_library@8
+_pb_directory@24
+_pb_entry_info@20
+_pb_error@0
+_pb_exe@36
+_pb_export@24
+_pb_import@36
+_pb_libraries@12
+_pb_load@8
+_pb_open@0
+_pb_pbd@16
+_pb_progress_supported@0
+_pb_rebuild@16
+_pb_regenerate@24
+_pb_session_error@12
+_pb_set_progress@8

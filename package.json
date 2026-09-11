@@ -21,22 +21,22 @@
   "files": [
     "dist/",
     "skill/",
-    "pb-cli.exe",
-    "PBSpy.dll",
     "src/",
     "test/",
-    "pb-project-build.exe",
     "build-native.ps1",
     "Install-Fix.ps1",
     "FIX-README.md",
     "UPSTREAM.md",
-    "docs/"
+    "docs/",
+    "pb-native.dll",
+    "pb-native-host.exe",
+    "TRIAL.md",
+    "pb-native.def"
   ],
   "keywords": [
     "mcp",
     "powerbuilder",
     "pbl",
-    "pbspy",
     "orca",
     "ai",
     "source-control"
@@ -50,10 +50,10 @@
     "cli": "node dist/cli.js",
     "test": "node --test test/project.test.js test/cli.test.js",
     "build:native": "powershell -NoProfile -ExecutionPolicy Bypass -File build-native.ps1",
-    "test:native": "node --test test/native-smoke.test.js"
+    "test:native": "node --test test/native-smoke.test.js test/native-library.test.js test/native-dependencies.test.js"
   },
   "type": "commonjs",
-  "version": "1.0.22",
+  "version": "1.0.24-native.4",
   "private": true,
   "repository": {
     "type": "git",

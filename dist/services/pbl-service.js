@@ -14,23 +14,22 @@ exports.exportAllSource = exportAllSource;
 exports.syncAllSource = syncAllSource;
 exports.createExecutable = createExecutable;
 /**
- * PBL 操作服务 - 全部通过 pb-cli.exe 实现 (自包含，无外部依赖)
+ * PBL 操作服务 - 全部通过 pb-native-host.exe 实现 (通过自有 C DLL 和本机 Sybase ORCA 运行库)
  */
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const child_process_1 = require("child_process");
-const pbspy_service_1 = require("./pbspy-service");
-// pb-cli.exe 路径 (在 pb-mcp 目录下)
-const PB_CLI = path_1.default.resolve(__dirname, '..', '..', 'pb-cli.exe');
+const native_service_1 = require("./native-service");
+// pb-native-host.exe 路径 (在 pb-mcp 目录下)
+const PB_CLI = path_1.default.resolve(__dirname, '..', '..', 'pb-native-host.exe');
 function callPbCli(args) {
-    if (!fs_1.default.existsSync(PB_CLI))
-        throw new Error(`pb-cli.exe not found: ${PB_CLI}`);
-    const output = (0, child_process_1.execFileSync)(PB_CLI, args, { timeout: 120000, encoding: 'utf8' });
-    return JSON.parse(output.trim());
+    const result = native_service_1.call(args);
+    if (result.success === false) throw new Error(result.error || '原生操作失败');
+    return result;
 }
 /**
  * 从 PBL 文件头部自动检测 PB 版本
- * ANSI (byte5 != 0) → 90 (PB9)
+ * ANSI (byte5 != 0) → PB_VERSION 或 80
  * Unicode (byte5 == 0) → 125 (PB12.5 默认)
  */
 function detectPbVersion(pblPath) {
@@ -40,7 +39,7 @@ function detectPbVersion(pblPath) {
             return 125;
         // byte 5: 0x00 = Unicode, otherwise ANSI
         if (buf[5] !== 0x00)
-            return 90; // ANSI → PB9
+            return Number(process.env.PB_VERSION||80); // ANSI defaults to the configured PB8 runtime
         return 125; // Unicode → PB12.5 default
     }
     catch {
@@ -112,7 +111,7 @@ function exportSourceToFile(pblPath, objectName, outputDir) {
         throw new Error(`未找到对象: ${objectName}`);
     const filename = entry.filename;
     const filePath = path_1.default.join(absOutDir, filename);
-    // 直接用 pb-cli 导出到文件
+    // 直接用 pb-native-host 导出到文件
     callPbCli(['export', absPath, objectName, filePath]);
     return {
         filePath,
@@ -163,7 +162,7 @@ function inferTypeFromName(objectName) {
 /**
  * 导入源码到 PBL
  */
-function importSource(pblPath, objectName, source, srcFile, pbVersion) {
+function importSource(pblPath, objectName, source, srcFile, pbVersion, options={}) {
     const absPath = path_1.default.resolve(pblPath);
     if (!fs_1.default.existsSync(absPath))
         throw new Error(`PBL 文件不存在: ${absPath}`);
@@ -214,21 +213,10 @@ function importSource(pblPath, objectName, source, srcFile, pbVersion) {
         typeName = inferred.typeName;
         filename = inferred.filename;
     }
-    const result = (0, pbspy_service_1.importSourceViaPbspy)(absPath, absSrcFile, objectName, effectiveVersion);
+    const result = (0, native_service_1.importSourceViaNative)(absPath, absSrcFile, objectName, effectiveVersion, options);
     if (!result.success) {
-        // pb-cli 可能返回编译错误(rc=-11)但对象已被创建，检查对象是否存在
-        let objectExists = false;
-        try {
-            const listResult = callPbCli(['list', absPath]);
-            objectExists = listResult.some((e) => e.name.toLowerCase() === objectName.toLowerCase());
-        }
-        catch { /* ignore */ }
-        if (!objectExists) {
-            const errDetails = result.errors.map(e => `[Level${e.level}] ${e.messageNumber} ${e.messageText} (行:${e.line} 列:${e.column})`).join('\n');
-            throw new Error(`导入失败:\n${errDetails || '未知错误'}`);
-        }
-        // 对象已创建但有编译警告（通常因对象间依赖尚未全部导入），视为成功
-        result.action = 'imported_with_warnings';
+        const details=result.errors.map(e=>e.messageText).join('\n');
+        throw new Error(`导入失败：${details||result.error||'原生编译器返回失败'}`);
     }
     return {
         action: result.action || 'imported',
@@ -256,7 +244,7 @@ function deleteObject(pblPath, objectName, pbVersion) {
     else {
         throw new Error(`未找到对象: ${objectName}`);
     }
-    const result = (0, pbspy_service_1.deleteObjectViaPbspy)(absPath, objectName, typeName, effectiveVersion);
+    const result = (0, native_service_1.deleteObjectViaNative)(absPath, objectName, typeName, effectiveVersion);
     if (!result.success) {
         throw new Error(`删除失败: 返回码 ${result.returnCode}`);
     }
@@ -267,7 +255,7 @@ function deleteObject(pblPath, objectName, pbVersion) {
  */
 function createLibrary(pblPath, comment = '', pbVersion = 125) {
     const absPath = path_1.default.resolve(pblPath);
-    const result = (0, pbspy_service_1.createPblViaPbspy)(absPath, comment, pbVersion);
+    const result = (0, native_service_1.createPblViaNative)(absPath, comment, pbVersion);
     if (!result.success) {
         throw new Error(`创建 PBL 失败: 返回码 ${result.returnCode}`);
     }
@@ -278,7 +266,7 @@ function createLibrary(pblPath, comment = '', pbVersion = 125) {
  */
 function deleteLibrary(pblPath) {
     const absPath = path_1.default.resolve(pblPath);
-    const result = (0, pbspy_service_1.deletePblViaPbspy)(absPath);
+    const result = (0, native_service_1.deletePblViaNative)(absPath);
     if (!result.success) {
         throw new Error(`删除 PBL 失败`);
     }
@@ -320,7 +308,7 @@ function createExecutable(pblPath, exePath, appName, options = {}) {
     const absPbl = path_1.default.resolve(pblPath);
     if (!fs_1.default.existsSync(absPbl))
         throw new Error(`PBL 文件不存在: ${absPbl}`);
-    const result = (0, pbspy_service_1.createExeViaPbspy)(absPbl, exePath, appName, options, options.pbVersion ?? detectPbVersion(absPbl));
+    const result = (0, native_service_1.createExeViaNative)(absPbl, exePath, appName, options, options.pbVersion ?? detectPbVersion(absPbl));
     if (!result.success) {
         const errDetails = result.linkErrors.length > 0
             ? result.linkErrors.join('\n')

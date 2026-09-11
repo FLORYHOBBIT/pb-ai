@@ -1,49 +1,35 @@
-# pb-ai 多库工程编译修复
+# 自有原生后端与编译行为
 
-基于本机安装的 1.0.21 修改。新增可编译的 C# x86 桥，继续调用原包 PBSpy.dll；原 pb-cli.exe 保留供读取、导出等操作使用。
+此次移除了原包两个二进制及其调用服务。所有 PBL 工具改用 `pb-native-host.exe` 和自有 C DLL `pb-native.dll`，再调用本机厂商 ORCA。没有复制 PBSpy 的内部实现，也不通过 PBSpy 的私有会话布局获取上下文。
 
-## 默认行为
+## 对象进度
 
-- `pbl_compile` 接受 PBT/PBL，自动发现同名 PBT，按原顺序加载完整库列表，设置应用对象，执行 Full Rebuild。
-- `pbl_create_exe` 先完整重编译，再生成 PBD、EXE。默认为 Pcode，各库 PBD 标志全部为 1。
-- 默认 EXE 为 PBT/PBL 目录中的 `应用名.exe`；PBR 为同目录的 `应用名.pbr`（存在才使用）；图标优先 `res/应用名.ico`，其次 `应用名.ico`。
-- 默认不读取可能过期的外部 SRJ 文件。公司等版本描述沿用调用参数或默认值；可以显式设置。PBD 单库资源默认空，可用 `libraryPbrPaths` 按库顺序指定。
-- 有效绝对路径保留，相对路径相对于 PBT/PBL 目录。失效的输入路径尝试当前目录同名文件；失效的 EXE 目录回落到当前目录，不创建旧目录。
-- PBR 中的中文资源按 UTF-8 优先读取，已有 PB8 ANSI 文件明确按 GB18030 解码；只为编译器生成临时 ANSI 资源清单，不改写原 PBR。临时 PBR 放在当前工程目录，保证 PB8 按 PBR 目录解析相对资源路径；正常结束时清理。
-- 缺库、缺资源、多个候选 PBT、重复 PBD 文件名均明确报错，不默默跳过。
-- PBD 先在各自 PBL 目录生成，再汇集到 EXE 目录。
-- 操作前备份相关 PBL、PBD、EXE。常规失败自动恢复；构建日志、请求和备份清单位于工具返回的 runDir。进程/机器意外终止时，应检查遗留构建锁及备份后再恢复。
-- Info 不算编译错误。成功还要求输出文件存在且非空。
+PB8 8.0.2.9506 的 ORCA 导入表按序号引用 `cm_rebuild_application`。自有 C DLL 在一次重建调用期间替换该进程的导入槽，为厂商内部回调配置补入观察函数，然后调用原函数并恢复导入槽；不修改磁盘 DLL。原回调存在时继续转发它的返回值。
 
-## 调用示例
+回调包含阶段编号、对象名、库路径。C# 立即复制字符串，以 UTF-8 JSONL 输出；100ms 批量刷新，CLI 200ms 读取。完全移除了先逐对象 Regenerate 再 Full Rebuild 的分支。
 
-```json
-{"pblPath":"C:\\PBProjects\\Demo\\demo.pbt","pbVersion":80}
-```
+未知 PB8 构建号、PB9 和 PB12.5 不启用未经验证的内部进度适配，仍走厂商公开完整重建接口，不回退到双重编译。仅有阶段和耗时不代表百分比。内部接口支持范围与公开 ORCA 功能支持范围分开记录。
 
-上述参数可用于 `pbl_compile`（仅编译），也可用于 `pbl_create_exe`（完整发布）。保留旧工具名称；`exePath`、`appName` 已改为可选，PBT 自动补齐。
+## 项目、产物与恢复
 
-## 安装及撤销
+- PBT 加载完整且有序的依赖库列表；PBL 可发现同名/唯一引用它的 PBT。
+- PBD 在各自 PBL 目录生成。EXE 使用指定位置，默认 PBT/PBL 目录；无效目录回落。
+- 同名 PBR、图标采用默认值；旧路径按当前目录同名文件回落，缺失资源明确失败。
+- PBR 资源规范化为绝对路径，并编码为 PB8 ANSI/PB12.5 Unicode；不改原 PBR。
+- `outputDir` 只在成功后复制 EXE/PBD；默认不复制到 EXE 目录。
+- 编译前备份 PBL、预期产物和覆盖目的文件；失败恢复，并保留诊断与备份路径。
+- 导入/删除失败恢复目标库。共享库导入可指定 `pbtPath`；歧义不随机选择工程。
 
-运行 `Install-Fix.ps1`，默认修复当前用户 `node_modules/pb-ai-mcp`。可用 `-Target` 指定其他安装位置。脚本自动创建 `.projectfix-backups` 备份，并输出确切路径。
+## EXE 版本资源
 
-安装后需重新连接 MCP 或重启 Codex，已运行进程内缓存的 JavaScript 不会自动更新。npm 重装/升级可能覆盖此本地修复。
+PB8 厂商 ORCA 没有 SetExeInfo 导出。宿主替换模板原有的中性语言版本资源，保留 EXE 尾部的 PB 库数据及其原文件偏移。Windows UpdateResource 会丢弃尾部数据，而且移动它会破坏 PB 的绝对文件指针，因此不能直接修改资源后宣布成功。
 
-撤销示例：
+版本字符串过长、超过模板预留资源空间时明确失败并恢复备份，不输出损坏的 EXE。版本资源修复已有实际运行样例验证；不以“存在 EXE 文件”代替可执行验证。
 
-```powershell
-.\Install-Fix.ps1 -Restore -BackupDirectory '安装时输出的备份目录'
-```
+## 依赖与接口
 
-`build-native.ps1` 使用 Windows 自带 .NET Framework C# 编译器重新生成 x86 桥；`node --test test/project.test.js` 运行配置测试。
+安装需要本机匹配版本的 Sybase ORCA 和运行库。以 `PB_RUNTIME_DIR`/`runtimeDir` 明确指定优先；其次注册表安装位置、PATH。拒绝带 PBSpy 特征导出的替代 ORCA 文件。
 
-源码包还包含 `test/native-smoke.test.js`。在 Windows 下执行 `node --test test/project.test.js test/native-smoke.test.js`，可同时验证中文工程目录、中文资源名、PBD、PBR 和 PB8 EXE 的实际生成。
+所有包内新增二进制均有源码，构建入口为 `build-native.ps1`。C DLL 对外导出 `pb_load`、`pb_open`、`pb_close`、`pb_libraries`、`pb_application`、`pb_rebuild`、`pb_set_progress`、`pb_directory`、`pb_export`、`pb_import`、`pb_pbd`、`pb_exe` 等函数；x86 stdcall 导出采用 `_name@字节数` 修饰。宿主负责结构、ANSI/Unicode 字符串和回调生命周期。
 
-## 代码位置
-
-- `src/native/ProjectBuild.cs`：完整库列表、应用设置、重编译、PBD 和 EXE 调用及编译回调。
-- `dist/services/project-service.js`：PBT 解析、路径回落、PBR、备份恢复、构建日志。
-- `dist/tools/compile.js`：MCP 参数和结果展示。
-
-当前验证范围以交付时的验证记录为准；PB8 之外的版本未做实机验证。不将构建成功等同于应用登录、数据库连接和业务功能验收。
-
+`Install-Fix.ps1` 可对既有包目录做文件级升级和回滚，包括移除旧二进制；通常推荐直接 npm 安装试验 tgz。

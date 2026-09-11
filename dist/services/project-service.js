@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('fs'),path=require('path'),os=require('os');
 const {execFileSync}=require('child_process');
-const PACKAGE=path.resolve(__dirname,'../..'),CLI=path.join(PACKAGE,'pb-cli.exe'),BRIDGE=path.join(PACKAGE,'pb-project-build.exe');
+const PACKAGE=path.resolve(__dirname,'../..'),CLI=path.join(PACKAGE,'pb-native-host.exe'),BRIDGE=path.join(PACKAGE,'pb-native-host.exe');
 function exists(file){try{return fs.statSync(file).isFile();}catch{return false;}}
 function directory(file){try{return fs.statSync(file).isDirectory();}catch{return false;}}
 // UTF-8 first; legacy PB8 exports/PBRs are explicitly decoded without changing the originals.
@@ -43,16 +43,17 @@ function resourceLines(file,base,libraries,warnings){
   if(dw){
    const named=libraries.filter(x=>path.basename(x).toLowerCase()===path.basename(clean(dw[1])).toLowerCase());
    const lib=exists(path.resolve(base,clean(dw[1])))?path.resolve(base,clean(dw[1])):named.length===1?named[0]:inputPath(dw[1],base,'PBR库引用',warnings);
-   return `${path.relative(base,lib)}(${dw[2]})`;
+   return `${lib}(${dw[2]})`;
   }
-  const value=clean(line);if(exists(path.resolve(base,value)))return value;
+  const value=clean(line);if(exists(path.resolve(base,value)))return path.resolve(base,value);
   const fallback=unique([path.resolve(path.dirname(file),value),path.join(base,path.basename(value))]).find(exists);
   if(!fallback)throw new Error(`PBR资源不存在：${line}（${file}）`);
-  warnings.push(`PBR资源路径回落：${line} -> ${fallback}`);return path.relative(base,fallback);
+  warnings.push(`PBR资源路径回落：${line} -> ${fallback}`);return fallback;
  });
 }
 function resolveProject(input,version,options={}){
  if(!Number.isInteger(version))throw new Error('必须显式指定 pbVersion，不能通过 ANSI 文件头推断 PB8/PB9');
+ if(version!==80&&version!==90&&version!==125)throw new Error('当前自有原生后端支持 PB8/PB9/PB12.5（80/90/125）；其他版本尚未适配');
  const file=path.resolve(input),warnings=[];if(!exists(file))throw new Error(`工程文件不存在：${file}`);
  const pbt=discoverPbt(file,options.pbtPath),baseDir=path.dirname(pbt||file);
  let libraries,appLibrary,appName;
@@ -73,8 +74,10 @@ function resolveProject(input,version,options={}){
  const pbdFlags=options.pbdFlags||libraries.map(()=>1);
  if(pbdFlags.length!==libraries.length||pbdFlags.some(x=>x!==0&&x!==1))throw new Error('pbdFlags必须与库列表一一对应且值为0/1');
  const names=libraries.filter((_,i)=>pbdFlags[i]).map(x=>path.basename(x).toLowerCase());
- if(new Set(names).size!==names.length)throw new Error('PBD存在同名库，不能安全汇集到EXE目录');
- return {...options,pbVersion:version,pbtPath:pbt,baseDir,appName,appLibrary,libraries,exePath,iconPath,pbrPath,pbdFlags,warnings};
+ const outputDir=options.outputDir?path.resolve(baseDir,options.outputDir):null;
+ if(outputDir&&new Set(names).size!==names.length)throw new Error('PBD存在同名库，不能安全复制到汇集目录');
+ if(outputDir&&fs.existsSync(outputDir)&&!directory(outputDir))throw new Error('outputDir不是目录：'+outputDir);
+ return {...options,pbVersion:version,pbtPath:pbt,baseDir,appName,appLibrary,libraries,exePath,iconPath,pbrPath,pbdFlags,warnings,outputDir};
 }
 function prepareResources(c){return {
  pbrLines:resourceLines(c.pbrPath,c.baseDir,c.libraries,c.warnings),
@@ -97,16 +100,21 @@ function runProject(input,version,options={},action='compile'){
  const runDir=fs.mkdtempSync(path.join(runRoot,config.appName+'-')),lock=path.join(config.baseDir,'.pb-ai-mcp-build.lock');let fd;
  try{fd=fs.openSync(lock,'wx');fs.writeFileSync(fd,JSON.stringify({pid:process.pid,runDir}));}catch{throw new Error(`工程已有构建锁：${lock}；确认没有构建进程后再处理遗留锁`);}
  let manifest=[],result;
- const outputs=action==='build'?config.libraries.filter((_,i)=>config.pbdFlags[i]).flatMap(lib=>[lib.replace(/\.pbl$/i,'.pbd'),path.join(path.dirname(config.exePath),path.basename(lib).replace(/\.pbl$/i,'.pbd'))]).concat(config.exePath):[];
+ const outputs=action==='build'?config.libraries.filter((_,i)=>config.pbdFlags[i]).map(lib=>lib.replace(/\.pbl$/i,'.pbd')).concat(config.exePath):[];
+ const copies=config.outputDir?outputs.map(source=>({source,dest:path.join(config.outputDir,path.basename(source))})).filter(x=>x.source.toLowerCase()!==x.dest.toLowerCase()):[];
  try{
-  manifest=backupFiles([...config.libraries,...outputs],runDir);
+  manifest=backupFiles([...config.libraries,...outputs,...copies.map(x=>x.dest)],runDir);
   const request={...config,...resources,action,logPath:path.join(runDir,'progress.jsonl')},requestPath=path.join(runDir,'request.json');
   fs.writeFileSync(requestPath,JSON.stringify(request,null,2),'utf8');let raw;
-  try{raw=execFileSync(BRIDGE,[requestPath],{encoding:'utf8',cwd:config.baseDir,timeout:options.timeoutMs||1800000,maxBuffer:64*1024*1024,windowsHide:true});}catch(e){if(e.stdout)raw=e.stdout;else throw e;}
+  try{raw=execFileSync(BRIDGE,['--build',requestPath],{encoding:'utf8',cwd:config.baseDir,timeout:options.timeoutMs||1800000,maxBuffer:64*1024*1024,windowsHide:true});}catch(e){if(e.stdout)raw=e.stdout;else throw e;}
   fs.writeFileSync(path.join(runDir,'native-result.json'),raw,'utf8');result=JSON.parse(raw.trim().replace(/^\uFEFF/,''));
-  if(result.success&&action==='build')for(const lib of config.libraries.filter((_,i)=>config.pbdFlags[i])){
-   const source=lib.replace(/\.pbl$/i,'.pbd'),dest=path.join(path.dirname(config.exePath),path.basename(source));
-   if(source.toLowerCase()!==dest.toLowerCase()){fs.copyFileSync(source,dest);result.artifacts.push(dest);}
+  result.copiedArtifacts=[];
+  if(result.success&&action==='build'&&config.outputDir){
+   fs.mkdirSync(config.outputDir,{recursive:true});
+   for(const {source,dest} of copies){
+    fs.copyFileSync(source,dest);result.artifacts.push(dest);result.copiedArtifacts.push(dest);
+    fs.appendFileSync(path.join(runDir,'progress.jsonl'),JSON.stringify({stage:'Copy artifact: '+dest})+'\n','utf8');
+   }
   }
   if(!result.success){restoreFiles(manifest);result.rolledBack=true;}
   result={...result,libraryCount:config.libraries.length,appName:config.appName,pbtPath:config.pbtPath,runDir,warnings:config.warnings};

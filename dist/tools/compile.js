@@ -2,6 +2,7 @@
 const {z}=require('zod');
 const {runProject}=require('../services/project-service');
 const common={
+ runtimeDir:z.string().optional().describe('本机 PB 原生 ORCA/运行库目录；也可设置 PB_RUNTIME_DIR'),
  pblPath:z.string().describe('PBT或PBL文件路径；传PBL时自动查找同名PBT并加载全部依赖库'),
  pbVersion:z.number().int().describe('实际PowerBuilder版本，PB8=80；必须明确指定'),
  pbtPath:z.string().optional().describe('可选的明确PBT路径，解决同一PBL属于多个工程的情况'),
@@ -28,6 +29,7 @@ function registerCompileTools(server){
  server.tool('pbl_create_exe','完整重编译并生成PBD及EXE。默认Pcode、全部库生成PBD、同名PBR；失效目录回落到PBT/PBL目录。',{
   ...common,
   exePath:z.string().optional().describe('默认当前PBT/PBL目录下的应用名.exe；指定目录不存在时回落当前工程目录'),
+  outputDir:z.string().optional().describe('编译成功后额外复制EXE/PBD到该目录，不存在则创建；相对路径以PBT/PBL目录为准；省略时PBD仅保留在对应PBL旁'),
   pbrPath:z.string().optional().describe('默认当前工程目录下的应用名.pbr；旧路径失效时查找当前目录同名文件'),
   iconPath:z.string().optional().describe('默认res/应用名.ico或应用名.ico'),
   pbdFlags:z.array(z.number().int().min(0).max(1)).optional().describe('按库列表顺序，1为PBD，0并入EXE；默认全部为1'),

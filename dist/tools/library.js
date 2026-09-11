@@ -76,7 +76,7 @@ function registerLibraryTools(server) {
     srv.tool('pbl_create_library', `${WORKFLOW_HINT} 创建新的 PowerBuilder PBL 库文件（如果文件已存在则失败）`, {
         pblPath: zod_1.z.string().describe('PBL 文件路径 (如 C:\\pb\\myapp.pbl)'),
         comment: zod_1.z.string().optional().describe('库注释 (可选)'),
-        pbVersion: zod_1.z.number().describe('PowerBuilder 版本号（必填），必须与目标 PBL 文件的 PB 版本匹配。支持: 50(PB5), 60(PB6), 70(PB7), 80(PB8), 90(PB9), 100(PB10), 105(PB10.5), 110(PB11), 115(PB11.5), 120(PB12), 125(PB12.5), 150(PB2019), 126(PB12.6), 170(PB2021), 180(PB2022), 190(PB2022R3)'),
+        pbVersion: zod_1.z.number().describe('PowerBuilder 版本号（必填），必须与目标 PBL 文件的 PB 版本匹配。当前后端适配 80(PB8)、90(PB9)、125(PB12.5)，必须安装匹配版本的原生 ORCA 运行库'),
     }, async ({ pblPath, comment, pbVersion }) => {
         try {
             const result = (0, pbl_service_js_1.createLibrary)(pblPath, comment || '', pbVersion);

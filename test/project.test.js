@@ -26,7 +26,7 @@ test('stale PBL/PBR references fall back to same-named files in target directory
  fs.writeFileSync(path.join(root,'app.pbt'),'appname "app";\napplib "stale\\app.pbl";\nliblist "stale\\app.pbl;stale\\base.pbl";','utf8');
  fs.writeFileSync(path.join(root,'app.pbr'),'图标.bmp\r\n','utf8');fs.writeFileSync(path.join(root,'图标.bmp'),'fixture');
  const c=resolveProject(path.join(root,'app.pbt'),80,{pbrPath:'old\\app.pbr'});
- assert.equal(c.libraries.length,2);assert.deepEqual(prepareResources(c).pbrLines,['图标.bmp']);
+ assert.equal(c.libraries.length,2);assert.deepEqual(prepareResources(c).pbrLines,[path.join(root,'图标.bmp')]);
 }));
 test('missing dependencies and missing PBR contents fail instead of dropping files',()=>withFixture(root=>{
  fs.unlinkSync(path.join(root,'base.pbl'));assert.throws(()=>resolveProject(path.join(root,'app.pbt'),80),/PBL不存在/);
