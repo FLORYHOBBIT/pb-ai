@@ -53,7 +53,7 @@
     "test:native": "node --test test/native-smoke.test.js test/native-library.test.js test/native-dependencies.test.js"
   },
   "type": "commonjs",
-  "version": "1.0.24-native.4",
+  "version": "1.0.24-native.5",
   "private": true,
   "repository": {
     "type": "git",

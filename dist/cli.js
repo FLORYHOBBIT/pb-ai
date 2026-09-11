@@ -58,6 +58,7 @@ const stageNames={
  'full-rebuild':'Full rebuild','set-exe-info':'Write EXE version information','create-exe':'Generate EXE','complete':'Build complete'
 };
 function show(event,quiet){
+ if(event.runtimeVersion){console.log(`[Runtime] PB${event.runtimeVersion} | ${event.runtimeDir}`);console.log(`[Progress] Compile=${event.compileProgress?'yes':'no'} PBD=${event.pbdProgress?'yes':'no'} EXE=${event.exeProgress?'yes':'no'}`);return;}
  if(event.objectEvent){
   if(event.objectEvent==='writing'){if(!quiet)console.log(`Writing ${event.library}(${event.name.replace(/\.(apl|dwo|udo|win|fun|str|men|bin)$/i,'')}) . . .`);return;}
   if(event.objectEvent==='progress'){

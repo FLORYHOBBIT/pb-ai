@@ -2,12 +2,12 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('fs'),path=require('path'),os=require('os'),{execFileSync}=require('child_process');
 const {runProject}=require('../dist/services/project-service');
-test('PB8 builds an x86 EXE/PBD with a Chinese relative PBR resource', {skip:process.platform!=='win32'},()=>{
+for(const pbVersion of (process.env.PB_TEST_VERSIONS||"80,90").split(",").map(Number)) test(`PB${pbVersion} builds an x86 EXE/PBD with a Chinese relative PBR resource`, {skip:process.platform!=='win32'},()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'pb-native-'));
  try{
   const base=path.join(root,'中文工程');fs.mkdirSync(base);
   const cli=path.resolve(__dirname,'../pb-native-host.exe'),pbl=path.join(base,'smoke.pbl');
-  const call=args=>execFileSync(cli,['--version=80',...args],{encoding:'utf8',windowsHide:true});
+  const call=args=>{try{return execFileSync(cli,['--version='+pbVersion,...args],{encoding:'utf8',windowsHide:true});}catch(e){throw new Error(e.message+' status='+e.status+' signal='+e.signal+'\n'+e.stdout+'\n'+e.stderr);}};
   call(['create-pbl',pbl]);
   const source=['$PBExportHeader$smoke.sra','forward','global type smoke from application','end type','end forward','global type smoke from application','string appname = "smoke"','end type','global smoke smoke','on smoke.create','end on','on smoke.destroy','end on',''].join('\r\n');
   const sra=path.join(base,'smoke.sra');
@@ -21,8 +21,9 @@ test('PB8 builds an x86 EXE/PBD with a Chinese relative PBR resource', {skip:pro
   fs.mkdirSync(path.join(base,'res'));fs.writeFileSync(path.join(base,'res','资源图.bmp'),bmp);
   fs.writeFileSync(path.join(base,'smoke.pbr'),'res\\资源图.bmp\r\n','utf8');
   const outDir=path.join(root,'输出目录');fs.mkdirSync(outDir);
-  const result=runProject(path.join(base,'smoke.pbt'),80,{runRoot:path.join(root,'logs'),traceObjects:true,exePath:path.join(outDir,'smoke.exe')},'build');
+  const result=runProject(path.join(base,'smoke.pbt'),pbVersion,{runRoot:path.join(root,'logs'),traceObjects:true,exePath:path.join(outDir,'smoke.exe')},'build');
   const events=fs.readFileSync(path.join(result.runDir,'progress.jsonl'),'utf8').trim().split(/\r?\n/).map(JSON.parse);
+  assert.ok(events.some(e=>e.runtimeVersion===pbVersion&&e.compileProgress&&e.pbdProgress&&e.exeProgress),'All verified runtime capabilities must be enabled');
   assert.ok(events.some(e=>e.objectEvent==='progress'&&e.name==='smoke.sra'));
   assert.ok(events.some(e=>e.objectEvent==='writing'&&e.name==='smoke.apl'), 'Native writer must report the application object');
   assert.ok(events.filter(e=>e.objectEvent==='writing').every(e=>e.library.toLowerCase()===pbl.toLowerCase()));
@@ -32,7 +33,7 @@ test('PB8 builds an x86 EXE/PBD with a Chinese relative PBR resource', {skip:pro
   assert.ok(fs.existsSync(path.join(base,'smoke.pbd')));
   assert.equal(fs.existsSync(path.join(outDir,'smoke.pbd')),false);
   const release=path.join(root,'发布','bin');
-  const copied=runProject(path.join(base,'smoke.pbt'),80,{runRoot:path.join(root,'logs'),exePath:path.join(outDir,'smoke.exe'),outputDir:release},'build');
+  const copied=runProject(path.join(base,'smoke.pbt'),pbVersion,{runRoot:path.join(root,'logs'),exePath:path.join(outDir,'smoke.exe'),outputDir:release},'build');
   assert.equal(copied.success,true,JSON.stringify(copied));
   assert.equal(copied.copiedArtifacts.length,2);
   assert.deepEqual(fs.readFileSync(path.join(base,'smoke.pbd')),fs.readFileSync(path.join(release,'smoke.pbd')));
@@ -40,14 +41,14 @@ test('PB8 builds an x86 EXE/PBD with a Chinese relative PBR resource', {skip:pro
   const runtime=JSON.parse(call(['info',pbl])).runtimeDir;
   execFileSync(path.join(release,'smoke.exe'),[],{cwd:release,timeout:10000,windowsHide:true,env:{...process.env,PATH:runtime+';'+process.env.PATH}});
   assert.match(fs.readFileSync(path.join(release,'native-smoke.txt'),'utf8'),/native-ok/);
-  const embedded=runProject(path.join(base,'smoke.pbt'),80,{runRoot:path.join(root,'logs'),exePath:path.join(outDir,'embedded.exe'),pbdFlags:[0]},'build');
+  const embedded=runProject(path.join(base,'smoke.pbt'),pbVersion,{runRoot:path.join(root,'logs'),exePath:path.join(outDir,'embedded.exe'),pbdFlags:[0]},'build');
   assert.equal(embedded.success,true,JSON.stringify(embedded));
   const embeddedEvents=fs.readFileSync(path.join(embedded.runDir,'progress.jsonl'),'utf8').trim().split(/\r?\n/).map(JSON.parse);
   assert.ok(embeddedEvents.some(e=>e.objectEvent==='writing'&&e.name==='smoke.apl'),'EXE writer must report embedded objects');
   assert.equal(embeddedEvents.some(e=>e.stage&&e.stage.startsWith('create-pbd:')),false);
   execFileSync(embedded.exePath,[],{cwd:outDir,timeout:10000,windowsHide:true,env:{...process.env,PATH:runtime+';'+process.env.PATH}});
   assert.match(fs.readFileSync(path.join(outDir,'native-smoke.txt'),'utf8'),/native-ok/);
-  const exe=fs.readFileSync(result.exePath),pe=exe.readUInt32LE(60);assert.equal(exe.readUInt16LE(pe+4),0x14c);assert.ok(exe.includes(Buffer.from('PBVM80.dll')));
+  const exe=fs.readFileSync(result.exePath),pe=exe.readUInt32LE(60);assert.equal(exe.readUInt16LE(pe+4),0x14c);assert.ok(exe.includes(Buffer.from('PBVM'+pbVersion+'.dll')));
   assert.equal(fs.readdirSync(base).some(x=>x.startsWith('.pb-ai-resources-')),false);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });

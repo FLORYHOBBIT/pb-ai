@@ -15,7 +15,7 @@ public static partial class ProjectBuild {
     static void OnObjectProgress(int phase,IntPtr name,IntPtr library,IntPtr user) {
         try {
             if(name==IntPtr.Zero)return;
-            Log(new {objectEvent=phase>=100?"writing":"progress",sequence=++objectSequence,phase=phase>=100?phase-100:phase,name=Marshal.PtrToStringAnsi(name),library=Marshal.PtrToStringAnsi(library)});
+            Log(new {objectEvent=phase>=100?"writing":"progress",sequence=++objectSequence,phase=phase>=100?phase-100:phase,name=ReadText(name),library=ReadText(library)});
         }catch(Exception ex){result.error="Object progress: "+ex.Message;}
     }
     static string RuntimeDirectory(int version,string supplied) {

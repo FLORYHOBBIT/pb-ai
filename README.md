@@ -4,13 +4,15 @@ PowerBuilder 的 `pb-build` 命令行工具和 MCP 服务，维护项目为 [FLO
 
 ## 安装与使用
 
-需要 Windows、Node.js 18+、.NET Framework 4.x，以及本机安装的对应版本 **Sybase ORCA 和 PowerBuilder 运行库**。当前适配版本号为 80、90、125；PB8 8.0.2.9506 支持真实对象进度。其他构建号会明确提示进度未适配，仍只执行一次完整重建。
+需要 Windows、Node.js 18+、.NET Framework 4.x，以及本机安装的对应版本 **Sybase ORCA 和 PowerBuilder 运行库**。通过 `--pb-version 80` 或 `--pb-version 90` 选择版本，运行库路径通常无需手动填写。PB8 8.0.2.9506、PB9 9.0.3.8836 已通过完整构建、三类对象进度及生成 EXE 的运行测试。其他构建号仅使用标准 ORCA 调用，并明确提示未适配的对象进度能力。
+
+`125` 仍保留标准 ORCA 调用入口，但本机 PB12.5.2.5629 在基础库操作测试中出现原生访问异常，尚未通过完整构建验证，未启用其内部进度适配。不能将“能加载 DLL”视为该版本已验证可用。
 
 试验版本先安装本地压缩包；未提交的修改不会通过 GitHub 安装得到：
 
 ```cmd
 cd /d D:\Environment\pb-mcp-test
-npm install "C:\Users\93199\Documents\Codex\2026-09-10\pb-ai-mcp\outputs\pb-ai-1.0.24-native.1.tgz"
+npm install "C:\Users\93199\Documents\Codex\2026-09-10\pb-ai-mcp\outputs\pb-ai-1.0.24-native.5.tgz"
 .\node_modules\.bin\pb-build.cmd build "E:\job\source_gzjszyy\Zhis4\doctor.pbt" --pb-version 80 --exe "E:\job\source_gzjszyy\doctor\doctor.exe"
 ```
 

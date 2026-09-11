@@ -33,7 +33,7 @@ public static partial class ProjectBuild {
     }
     static List<NativeEntry> Entries(string library) {
         directoryEntries=new List<NativeEntry>();directoryError=null;Callback cb=OnDirectory;
-        Check(Api<DirectoryApi>("pb_directory")(activeSession,Text(library),Memory(1024),1024,cb,IntPtr.Zero));GC.KeepAlive(cb);
+        Check(Api<DirectoryApi>("pb_directory")(activeSession,Text(library),Memory(unicode?2048:1024),1024,cb,IntPtr.Zero));GC.KeepAlive(cb);
         if(directoryError!=null)throw new InvalidDataException(directoryError);
         return directoryEntries;
     }

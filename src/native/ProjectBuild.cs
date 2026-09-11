@@ -112,8 +112,10 @@ public static partial class ProjectBuild {
         Stage("open-session");
         IntPtr session=OpenRuntime(config.pbVersion,config.runtimeDir);
         NativeProgress nativeProgress=OnObjectProgress;
-        if(Api<ProgressSupported>("pb_progress_supported")()!=0)Api<SetProgress>("pb_set_progress")(nativeProgress,IntPtr.Zero);
-        else Log(new {stage="当前运行库尚未适配对象进度；仍只执行一次完整重建"});
+        int progressCapabilities=Api<ProgressSupported>("pb_progress_supported")();
+        Log(new {runtimeVersion=config.pbVersion,runtimeDir=loadedRuntime,compileProgress=(progressCapabilities&1)!=0,pbdProgress=(progressCapabilities&2)!=0,exeProgress=(progressCapabilities&4)!=0});
+        if(progressCapabilities!=0)Api<SetProgress>("pb_set_progress")(nativeProgress,IntPtr.Zero);
+        if(progressCapabilities!=7)Log(new {stage="Some object progress callbacks are unavailable for this runtime build; compilation still uses a single full rebuild"});
         Callback compile=OnCompile, link=OnLink;
         try {
             Stage("set-library-list");

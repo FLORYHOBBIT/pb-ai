@@ -8,7 +8,7 @@
 #define API __declspec(dllexport)
 #define CALL __stdcall
 typedef void (CALL *CBPROC)(void *,void *);
-typedef void (CALL *PROGRESS)(int,const char *,const char *,void *);
+typedef void (CALL *PROGRESS)(int,const void *,const void *,void *);
 typedef struct CM_PROGRESS CM_PROGRESS;
 typedef int (CALL *CM_CALLBACK)(CM_PROGRESS *);
 struct CM_PROGRESS { DWORD reserved[2]; CM_CALLBACK callback; int phase; const char *object; const char *library; };
@@ -23,10 +23,17 @@ static CM_CALLBACK original_callback;
 static FARPROC *cm_slot;
 static DWORD owner_thread;
 static int progress_available;
-/* PB8 8.0.2.9506 object writer configuration, verified against vendor code. */
+/* Profiles describe verified x86 ABIs, not a promise about untested builds.
+ * Module names and ORCA entry points are resolved from the requested version. */
+#include "runtime_profiles.h"
+static const RUNTIME_PROFILE *profile;
 typedef struct OB_PROGRESS OB_PROGRESS;
 typedef int (CALL *OB_CALLBACK)(OB_PROGRESS *);
-struct OB_PROGRESS { DWORD reserved[16]; int phase; const char *object; const char *library; OB_CALLBACK callback; };
+struct OB_PROGRESS { BYTE opaque[1]; };
+#define WRITER_CALLBACK(p) (*(OB_CALLBACK*)((BYTE*)(p)+profile->writer_callback))
+#define WRITER_PHASE(p) (*(int*)((BYTE*)(p)+profile->writer_phase))
+#define WRITER_OBJECT(p) (*(const void**)((BYTE*)(p)+profile->writer_phase+4))
+#define WRITER_LIBRARY(p) (*(const void**)((BYTE*)(p)+profile->writer_phase+8))
 typedef int (CALL *OB_LIBRARY)(void *,OB_PROGRESS *);
 typedef int (CALL *OB_EXE)(void *,OB_PROGRESS *,void *);
 static FARPROC *write_library_slot,*write_exe_slot;
@@ -36,11 +43,13 @@ static OB_CALLBACK original_writer_callback;
 
 static FARPROC fn(const char *name) { FARPROC p=orca?GetProcAddress(orca,name):NULL; if(!p)snprintf(last_error,sizeof(last_error),"Missing vendor ORCA export: %s",name); return p; }
 API const char *CALL pb_error(void) {return last_error;}
-static int supported_compiler(const wchar_t *path) {
- DWORD dummy=0,size=GetFileVersionInfoSizeW(path,&dummy); BYTE *data; VS_FIXEDFILEINFO *info; UINT n; int ok=0;
+static int matches_profile(HMODULE module) {
+ wchar_t path[32768]; DWORD dummy=0,size; BYTE *data; VS_FIXEDFILEINFO *info; UINT n; int ok=0;
+ if(!module||!profile||!GetModuleFileNameW(module,path,32768))return 0;
+ size=GetFileVersionInfoSizeW(path,&dummy);
  if(!size)return 0;data=(BYTE*)HeapAlloc(GetProcessHeap(),0,size);if(!data)return 0;
  if(GetFileVersionInfoW(path,0,size,data)&&VerQueryValueW(data,L"\\",(void**)&info,&n)&&n>=sizeof(*info))
-  ok=info->dwFileVersionMS==0x00080000&&info->dwFileVersionLS==0x00022522;
+  ok=info->dwFileVersionMS==profile->ms&&info->dwFileVersionLS==profile->ls;
  HeapFree(GetProcessHeap(),0,data);return ok;
 }
 static FARPROC *find_import(HMODULE module,const char *runtime,const char *name) {
@@ -53,7 +62,7 @@ static FARPROC *find_import(HMODULE module,const char *runtime,const char *name)
  d=(IMAGE_IMPORT_DESCRIPTOR*)(b+nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
  for(;d->Name;d++) {
   IMAGE_THUNK_DATA32 *names,*slots;
-  if(!d->OriginalFirstThunk)continue;
+  if(lstrcmpiA((const char*)(b+d->Name),runtime)!=0||!d->OriginalFirstThunk)continue;
   names=(IMAGE_THUNK_DATA32*)(b+d->OriginalFirstThunk);slots=(IMAGE_THUNK_DATA32*)(b+d->FirstThunk);
   for(;names->u1.AddressOfData;names++,slots++) {
    if(target&&(FARPROC)slots->u1.Function==target)return (FARPROC*)&slots->u1.Function;
@@ -78,18 +87,19 @@ API int CALL pb_load(int requested,const wchar_t *directory) {
  if(!orca){snprintf(last_error,sizeof(last_error),"Cannot load vendor ORCA DLL for PB%d (Win32=%lu)",requested,GetLastError());return -1;}
  if(GetProcAddress(orca,"PBORCA_SessionOpenWithVersion")){strcpy(last_error,"A replacement ORCA DLL was detected. Supply the original vendor ORCA DLL, not PBSpy.");return -1;}
  if(!fn("PBORCA_SessionOpen"))return -1;
- if(requested==80) {
-  swprintf(path,L"%ls\\pbcmp80.dll",directory);
-  if(supported_compiler(path))cm_slot=find_import(orca,"pbcmp80.dll","cm_rebuild_application");
-  progress_available=cm_slot!=NULL;
-  swprintf(path,L"%ls\\pbvm80.dll",directory);
-  if(supported_compiler(path)) {
-   swprintf(path,L"%ls\\pblib80.dll",directory);
-   if(supported_compiler(path)) {
-    write_library_slot=find_import(GetModuleHandleA("pblib80.dll"),"pbvm80.dll","ob_create_library");
-    write_exe_slot=find_import(orca,"pbvm80.dll","ob_create_executable");
-   }
+ {
+  char compiler[64],vm[64],library[64]; unsigned i;
+  for(i=0;i<sizeof(profiles)/sizeof(profiles[0]);i++)if(profiles[i].version==requested){profile=&profiles[i];break;}
+  snprintf(compiler,sizeof(compiler),"pbcmp%d.dll",requested);
+  snprintf(vm,sizeof(vm),"pbvm%d.dll",requested);
+  snprintf(library,sizeof(library),"pblib%d.dll",requested);
+  if(matches_profile(orca)&&matches_profile(GetModuleHandleA(compiler)))
+   cm_slot=find_import(orca,compiler,"cm_rebuild_application");
+  if(matches_profile(orca)&&matches_profile(GetModuleHandleA(vm))&&matches_profile(GetModuleHandleA(library))) {
+   write_library_slot=find_import(GetModuleHandleA(library),vm,"ob_create_library");
+   write_exe_slot=find_import(orca,vm,"ob_create_executable");
   }
+  progress_available=(cm_slot?1:0)|(write_library_slot?2:0)|(write_exe_slot?4:0);
  }
  return 0;
 }
@@ -113,7 +123,7 @@ API int CALL pb_rebuild(void *session,int mode,CBPROC callback,void *user) {
   original_cm=(CM_REBUILD)*cm_slot;owner_thread=GetCurrentThreadId();*cm_slot=(FARPROC)observe_rebuild;
   VirtualProtect(cm_slot,sizeof(*cm_slot),old,&ignore);patched=1;
  }
- if(progress&&progress_available&&!patched){strcpy(last_error,"Cannot install progress adapter");return -1;}
+ if(progress&&cm_slot&&!patched){strcpy(last_error,"Cannot install progress adapter");return -1;}
  rc=f(session,mode,callback,user);
  if(patched) {
   if(!VirtualProtect(cm_slot,sizeof(*cm_slot),PAGE_READWRITE,&old)){strcpy(last_error,"Cannot restore progress adapter");return -1;}
@@ -137,21 +147,21 @@ WRAP(pb_import,"PBORCA_CompileEntryImport",(void*s,void*l,void*n,int t,void*c,vo
 WRAP(pb_regenerate,"PBORCA_CompileEntryRegenerate",(void*s,void*l,void*n,int t,CBPROC cb,void*u),(void*,void*,void*,int,CBPROC,void*),(s,l,n,t,cb,u))
 /* Observe actual writer callbacks only while the vendor packaging call runs. */
 static int CALL on_write_progress(OB_PROGRESS *p) {
- if(progress && p->phase==1 && p->object && p->library)
-  progress(100+p->phase,p->object,p->library,progress_user);
+ if(progress && WRITER_PHASE(p)==1 && WRITER_OBJECT(p) && WRITER_LIBRARY(p))
+  progress(100+WRITER_PHASE(p),WRITER_OBJECT(p),WRITER_LIBRARY(p),progress_user);
  return original_writer_callback?original_writer_callback(p):1;
 }
 static int CALL observe_library(void *context,OB_PROGRESS *p) {
  OB_CALLBACK saved,outer;int rc;
  if(!p||GetCurrentThreadId()!=owner_thread)return original_library(context,p);
- saved=p->callback;outer=original_writer_callback;original_writer_callback=saved;p->callback=on_write_progress;
- rc=original_library(context,p);p->callback=saved;original_writer_callback=outer;return rc;
+ saved=WRITER_CALLBACK(p);outer=original_writer_callback;original_writer_callback=saved;WRITER_CALLBACK(p)=on_write_progress;
+ rc=original_library(context,p);WRITER_CALLBACK(p)=saved;original_writer_callback=outer;return rc;
 }
 static int CALL observe_exe(void *context,OB_PROGRESS *p,void *extra) {
  OB_CALLBACK saved,outer;int rc;
  if(!p||GetCurrentThreadId()!=owner_thread)return original_exe(context,p,extra);
- saved=p->callback;outer=original_writer_callback;original_writer_callback=saved;p->callback=on_write_progress;
- rc=original_exe(context,p,extra);p->callback=saved;original_writer_callback=outer;return rc;
+ saved=WRITER_CALLBACK(p);outer=original_writer_callback;original_writer_callback=saved;WRITER_CALLBACK(p)=on_write_progress;
+ rc=original_exe(context,p,extra);WRITER_CALLBACK(p)=saved;original_writer_callback=outer;return rc;
 }
 static int replace_slot(FARPROC *slot,FARPROC replacement,FARPROC *saved) {
  DWORD old,ignore;
